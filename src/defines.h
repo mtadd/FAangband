@@ -2352,100 +2352,34 @@ enum
  */
 
 /**
- * Determine if a "legal" grid is a "floor" grid
- *
- * Line 1 -- forbid doors, seams, walls, rubble and trees.
- * Line 2 -- forbid void -NRM-
- * 
- * Note the use of the new "CAVE_WALL" flag.
- */
-#define cave_floor_bold(Y,X) \
-    (!cave_has(cave_info[Y][X], CAVE_WALL) && \
-          !(cave_feat[Y][X] == FEAT_VOID))
-
-
-/**
- * Determine if a "legal" grid can be projected through
- *
- * Line 1 -- forbid doors, seams, walls, rubble and trees.
- * 
+ * Determine if a legal grid can be projected through
  * This is a pretty feeble hack -NRM-
  */
 #define cave_project(Y,X) \
-    (!cave_has(cave_info[Y][X],CAVE_WALL)) 
+    (tf_has(f_info[cave_feat[Y][X]].flags, TF_PROJECT)) 
 
 
 /**
- * Determine if a "legal" grid is able to be passed through by creatures 
- * that cannot bore or pass through walls.  This new definition is needed, 
- * because some terrain can now be traversed,  but ends LOS.  It is also
- * used in the projectable function. -LM-
+ * Determine if a legal grid is a clean floor grid
+ * Used for placing objects
  *
- * Line 1 -- forbid doors, seams, walls, etc.
- * Line 2, 3 -- but allow trees
- * Line 4 -- but allow rubble
- * Line 5 -- but allow sand dunes
- *
- * Note the use of the new "CAVE_WALL" flag.
- */
-#define cave_passable_bold(Y,X) \
-    (!cave_has(cave_info[Y][X], CAVE_WALL) ||	\
-	(cave_feat[Y][X] == FEAT_TREE) || \
-	(cave_feat[Y][X] == FEAT_TREE2) || \
-	(cave_feat[Y][X] == FEAT_RUBBLE) || \
-	(cave_feat[Y][X] == FEAT_DUNE) || \
-	(cave_feat[Y][X] >= FEAT_VOID))
-
-
-
-
-/**
- * Determine if a "legal" grid is a "clean" floor grid
- *
- * Line 1 -- forbid non-floors
- * Line 2 -- allow grass
- * Line 3 -- allow sand dunes
- * Line 4 -- forbid normal objects
+ * Line 1 -- check can hold an object
+ * Line 2 -- forbid normal objects
  */
 #define cave_clean_bold(Y,X)		     \
-  (((cave_feat[Y][X] == FEAT_FLOOR) ||	     \
-    (cave_feat[Y][X] == FEAT_GRASS) ||	     \
-    (cave_feat[Y][X] == FEAT_DUNE)) &&	     \
-   (cave_o_idx[Y][X] == 0))
+    (tf_has(f_info[cave_feat[Y][X]].flags, TF_OBJECT) && \
+     (cave_o_idx[Y][X] == 0))
 
 /**
- * Determine if a "legal" grid is an "empty" floor grid
+ * Determine if a legal grid is an empty floor grid
+ * Used for safely placing the player or a monster
  *
- * Line 1 -- forbid doors, seams, walls
- * Line 2 -- allow dunes - FA100
- * Line 3 -- allow trees - FA100
- * Line 4 -- allow trees - FA100
- * Line 5 -- allow rubble - FA100
- * Line 6 -- forbid player/monsters
+ * Line 1 -- check passable
+ * Line 2 -- forbid player/monsters
  */
 #define cave_empty_bold(Y,X) \
-        ((cave_floor_bold(Y,X) || \
-	 (cave_feat[Y][X] == FEAT_DUNE) || \
-	 (cave_feat[Y][X] == FEAT_TREE) || \
-	 (cave_feat[Y][X] == FEAT_TREE2) || \
-	 (cave_feat[Y][X] == FEAT_RUBBLE)) && \
-	 (cave_m_idx[Y][X] == 0))
-
-/**
- * Determine if a "legal" grid is a "naked" floor grid
- *
- * Line 1 -- forbid non-floors
- * Line 2 -- allow grass
- * Line 3 -- allow sand dunes
- * Line 4 -- forbid normal objects
- * Line 5 -- forbid player/monsters
- */
-#define cave_naked_bold(Y,X) \
-	(((cave_feat[Y][X] == FEAT_FLOOR) || \
-         (cave_feat[Y][X] == FEAT_GRASS) || \
-         (cave_feat[Y][X] == FEAT_DUNE)) && \
-	 (cave_o_idx[Y][X] == 0) && \
-	 (cave_m_idx[Y][X] == 0))
+    (tf_has(f_info[cave_feat[Y][X]].flags, TF_PASSABLE) && \
+     (cave_m_idx[Y][X] == 0))
 
 /**
  * Determine if a "legal" grid is within "los" of the player

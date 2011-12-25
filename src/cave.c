@@ -2946,6 +2946,9 @@ void update_view(void)
 	u32b bits2 = vinfo_bits_2;
 	u32b bits3 = vinfo_bits_3;
 
+	/* Terrain */
+	feature_type *f_ptr;
+
 	/* Reset queue */
 	queue_head = queue_tail = 0;
 
@@ -2968,8 +2971,9 @@ void update_view(void)
 		y = GRID_Y(g);
 		x = GRID_X(g);
 
-		/* Handle wall */
-		if (cave_has(cave_info[y][x], CAVE_WALL)) {
+		/* Handle los blockage by terrain */
+		f_ptr = &f_info[cave_feat[y][x]];
+		if (!tf_has(f_ptr->flags, TF_LOS)) {
 		    /* Clear bits */
 		    bits0 &= ~(p->bits_0);
 		    bits1 &= ~(p->bits_1);
@@ -3545,11 +3549,12 @@ void map_area(int y, int x, bool extended)
 	    if (distance(y_c, x_c, y, x) > rad)
 		continue;
 
-	    /* All non-walls, trees, dunes and rubble are "checked" */
+	    /* All passable grids are checked */
 	    if (tf_has(f_ptr->flags, TF_PASSABLE)) {
-		/* Memorize normal features */
+		/* Memorize interesting features */
 		if (!tf_has(f_ptr->flags, TF_FLOOR) ||
-		    tf_has(f_ptr->flags, TF_INTERESTING)) {
+		    tf_has(f_ptr->flags, TF_INTERESTING)) 
+		{
 		    /* Memorize the object */
 		    cave_on(cave_info[y][x], CAVE_MARK);
 		}
@@ -3559,8 +3564,9 @@ void map_area(int y, int x, bool extended)
 		    int yy = y + ddy_ddd[i];
 		    int xx = x + ddx_ddd[i];
 
-		    /* All walls are "checked" */
-		    if (cave_has(cave_info[yy][xx], CAVE_WALL)) {
+		    /* All blockages are checked */
+		    f_ptr = &f_info[cave_feat[yy][xx]];
+		    if (!tf_has(f_ptr->flags, TF_LOS)) {
 			/* Memorize the walls */
 			cave_on(cave_info[yy][xx], CAVE_MARK);
 		    }
@@ -3624,8 +3630,10 @@ void wiz_light(bool wizard)
     for (y = 1; y < DUNGEON_HGT - 1; y++) {
 	/* Scan all normal grids */
 	for (x = 1; x < DUNGEON_WID - 1; x++) {
+	    feature_type *f_ptr = &f_info[cave_feat[y][x]];
+	    
 	    /* Process all passable grids (or all grids, if a wizard) */
-	    if (cave_passable_bold(y, x))
+	    if (tf_has(f_ptr->flags, TF_PASSABLE))
 	    {
 		/* Paranoia -- stay in bounds */
 		if (!in_bounds_fully(y, x)) continue;
@@ -3635,18 +3643,21 @@ void wiz_light(bool wizard)
 		{
 		    int yy = y + ddy_ddd[i];
 		    int xx = x + ddx_ddd[i];
-		    
+
+		    f_ptr = &f_info[cave_feat[yy][xx]];		    
+
 		    /* Perma-light the grid (always) */
 		    cave_on(cave_info[yy][xx], CAVE_GLOW);
 		    
 		    /* If not a wizard, do not mark passable grids in vaults */
 		    if ((!wizard) && cave_has(cave_info[yy][xx], CAVE_ICKY))
 		    {
-			if (cave_passable_bold(yy, xx)) continue;
+			if (tf_has(f_ptr->flags, TF_PASSABLE)) continue;
 		    }
 		    
 		    /* Memorize features other than ordinary floor */
-		    if (!cave_floor_bold(yy, xx) || cave_visible_trap(yy, xx))
+		    if (!tf_has(f_ptr->flags, TF_FLOOR) || 
+			cave_visible_trap(yy, xx))
 		    {
 			/* Memorize the grid */
 			cave_on(cave_info[yy][xx], CAVE_MARK);
@@ -3814,23 +3825,8 @@ void illuminate(void)
  */
 void cave_set_feat(int y, int x, int feat)
 {
-
-    feature_type *f_ptr = &f_info[feat];
-
     /* Change the feature */
     cave_feat[y][x] = feat;
-
-    /* Handle "floor" grids. */
-    if (tf_has(f_ptr->flags, TF_LOS) || tf_has(f_ptr->flags, TF_SHOP)) 
-    {
-	cave_off(cave_info[y][x], CAVE_WALL);
-    }
-
-    /* Handle "wall"/etc grids */
-    else 
-    {
-	cave_on(cave_info[y][x], CAVE_WALL);
-    }
 
     /* Notice/Redraw */
     if (character_dungeon) {
@@ -4144,6 +4140,7 @@ byte projectable(int y1, int x1, int y2, int x2, int flg)
 
     int grid_n = 0;
     u16b grid_g[512];
+    feature_type *f_ptr;
 
     /* Check the projection path */
     grid_n = project_path(grid_g, MAX_RANGE, y1, x1, y2, x2, flg);
@@ -4160,8 +4157,9 @@ byte projectable(int y1, int x1, int y2, int x2, int flg)
     if ((y != y2) || (x != x2))
 	return (PROJECT_NO);
 
-    /* May not end in a wall, unless a tree or rubble grid. */
-    if (!cave_passable_bold(y, x))
+    /* Must end in a passable grid. */
+    f_ptr = &f_info[cave_feat[y][x]];
+    if (!tf_has(f_ptr->flags, TF_PASSABLE))
 	return (PROJECT_NO);
 
 

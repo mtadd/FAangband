@@ -688,7 +688,7 @@ bool lay_rune(int type)
     int px = p_ptr->px;
 
     trap_kind *trap_ptr = &trap_info[type];
-    bool takes_rune = tf_has(cave_feat[py][px].flags, TF_RUNE);
+    bool takes_rune = tf_has(f_info[cave_feat[py][px]].flags, TF_RUNE);
 
     /* If we're standing on a rune of mana, we can add mana to it */
     if ((type == RUNE_MANA) && (cave_trap_specific(py, px, RUNE_MANA)))
@@ -3775,6 +3775,7 @@ void tap_magical_energy(void)
 void do_starlight(int burst_number, int dam, bool strong)
 {
     int i, j, y, x;
+    feature_type *f_ptr;
 
     /* Is the player in a square already magically lit? */
     bool player_lit = cave_has(cave_info[p_ptr->py][p_ptr->px], CAVE_GLOW);
@@ -3800,7 +3801,8 @@ void do_starlight(int burst_number, int dam, bool strong)
 		continue;
 
 	    /* Require passable terrain */
-	    if (!cave_passable_bold(y, x))
+	    f_ptr = &f_info[cave_feat[y][x]];
+	    if (!tf_has(f_ptr->flags, TF_PASSABLE))
 		continue;
 
 	    /* Spot chosen. */
@@ -4027,6 +4029,7 @@ void ele_air_smite(void)
 {
     byte i, j;
     int y, x;
+    feature_type *f_ptr;
 
     /* Due warning. */
     msg("The powers of Air rain down destruction!");
@@ -4052,7 +4055,8 @@ void ele_air_smite(void)
 		continue;
 
 	    /* Require passable terrain */
-	    if (!cave_passable_bold(y, x))
+	    f_ptr = &f_info[cave_feat[y][x]];
+	    if (!tf_has(f_ptr->flags, TF_PASSABLE))
 		continue;
 
 	    /* Slight preference for actual monsters. */
@@ -5045,10 +5049,11 @@ void earthquake(int cy, int cx, int r, bool volcano)
 	    if (cave_valid_bold(yy, xx)) {
 		int feat = FEAT_FLOOR;
 
-		bool floor = cave_floor_bold(yy, xx);
-
 		monster_type *m_ptr = &m_list[cave_m_idx[yy][xx]];
 		monster_race *r_ptr = &r_info[m_ptr->r_idx];
+		feature_type *f_ptr = &f_info[cave_feat[yy][xx]];
+
+		bool floor = tf_has(f_ptr->flags, TF_FLOOR);
 
 		/* Allow more things to be destroyed outside */
 		if (stage_map[p_ptr->stage][STAGE_TYPE] != CAVE)

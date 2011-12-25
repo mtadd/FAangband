@@ -1596,6 +1596,7 @@ s16b monster_carry(int m_idx, object_type * j_ptr)
 bool is_detected(int y, int x)
 {
     int d, xx, yy;
+    feature_type *f_ptr;
 
     /* Check around (and under) the character */
     for (d = 0; d < 9; d++) {
@@ -1608,7 +1609,8 @@ bool is_detected(int y, int x)
 	    continue;
 
 	/* Only check trappable grids */
-	if (!cave_floor_bold(yy, xx))
+	f_ptr = &f_info[cave_feat[yy][xx]];
+	if (!tf_has(f_ptr->flags, TF_TRAP))
 	    continue;
 
 	/* Return false if undetected */
@@ -1727,7 +1729,7 @@ s16b player_place(int y, int x)
 	return (0);
 
     /* No stairs if we don't do that */
-    if (OPT(adult_no_stairs) && !p_ptr->themed_level && p_ptr->depth)
+    if (OPT(adult_no_stairs) && !p_ptr->themed_level && p_ptr->depth && !(OPT(adult_thrall) && (p_ptr->depth == 58) && (turn < 10)))
 	cave_set_feat(y, x, FEAT_FLOOR);
 
     /* Save player location */
@@ -2758,6 +2760,7 @@ bool summon_specific(int y1, int x1, bool scattered, int lev, int type)
     int i, j, x, y, d, r_idx;
 
     bool found = FALSE;
+    feature_type *f_ptr;
 
     /* Prepare to look at a greater distance if necessary */
     for (j = 0; j < 3; j++) {
@@ -2773,7 +2776,8 @@ bool summon_specific(int y1, int x1, bool scattered, int lev, int type)
 	    scatter(&y, &x, y1, x1, d, 0);
 
 	    /* Require passable terrain, with no other creature or player. */
-	    if (!cave_passable_bold(y, x))
+	    f_ptr = &f_info[cave_feat[y][x]];	    
+	    if (!tf_has(f_ptr->flags, TF_PASSABLE))
 		continue;
 	    if (cave_m_idx[y][x] != 0)
 		continue;
@@ -2844,7 +2848,7 @@ bool summon_specific(int y1, int x1, bool scattered, int lev, int type)
 bool summon_questor(int y1, int x1)
 {
     int i, x, y, d;
-
+    feature_type *f_ptr;
 
     /* Look for a location */
     for (i = 0; i < 20; ++i) {
@@ -2855,7 +2859,8 @@ bool summon_questor(int y1, int x1)
 	scatter(&y, &x, y1, x1, d, 0);
 
 	/* Require passable terrain, with no other creature or player. */
-	if (!cave_passable_bold(y, x))
+	f_ptr = &f_info[cave_feat[y][x]];	    
+	if (!tf_has(f_ptr->flags, TF_PASSABLE))
 	    continue;
 	if (cave_m_idx[y][x] != 0)
 	    continue;
