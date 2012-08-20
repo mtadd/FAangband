@@ -62,7 +62,7 @@
  */
 /*
 #ifdef BUILD_ID
-#define VERSION_STRING	"1.2.7 (" BUILD_ID ")"
+#define VERSION_STRING	"1.2.10 (" BUILD_ID ")"
 #endif
 */
 
@@ -71,7 +71,7 @@
  */
 #define VERSION_MAJOR	1
 #define VERSION_MINOR	2
-#define VERSION_PATCH	7
+#define VERSION_PATCH	10
 #define VERSION_EXTRA	0
 
 /**
@@ -1044,6 +1044,7 @@ enum
 #define FEAT_TREE               0x72
 #define FEAT_TREE2		0x73
 #define FEAT_GRASS              0x74  
+#define FEAT_ROAD               0x75
 #define FEAT_VOID               0x77  
 #define FEAT_PIT                0x78  
 #define FEAT_DUNE               0x7a
@@ -2374,11 +2375,11 @@ enum
  * Determine if a legal grid is an empty floor grid
  * Used for safely placing the player or a monster
  *
- * Line 1 -- check passable
+ * Line 1 -- check easily passed through
  * Line 2 -- forbid player/monsters
  */
 #define cave_empty_bold(Y,X) \
-    (tf_has(f_info[cave_feat[Y][X]].flags, TF_PASSABLE) && \
+    (tf_has(f_info[cave_feat[Y][X]].flags, TF_EASY) && \
      (cave_m_idx[Y][X] == 0))
 
 /**

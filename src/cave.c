@@ -31,6 +31,14 @@
 #include "trap.h"
 
 
+static int view_n;
+static u16b view_g[VIEW_MAX];
+static int  vinfo_grids;
+static int  vinfo_slopes;
+static u32b vinfo_bits_3;
+static u32b vinfo_bits_2;
+static u32b vinfo_bits_1;
+static u32b vinfo_bits_0;
 
 /**
  * Approximate Distance between two points.
@@ -471,27 +479,20 @@ static byte multi_hued_attr(monster_race * r_ptr)
 /**
  * Hack -- Hallucinatory monster
  */
-static u16b hallucinatory_monster(void)
+static void hallucinatory_monster(byte *a, wchar_t *c)
 {
-    monster_race *r_ptr;
-
-    byte a;
-    char c;
-
     while (1) {
 	/* Select a random monster */
-	r_ptr = &r_info[randint0(z_info->r_max)];
+	monster_race *r_ptr = &r_info[randint0(z_info->r_max)];
 
 	/* Skip non-entries */
 	if (!r_ptr->name)
 	    continue;
 
 	/* Retrieve attr/char */
-	a = r_ptr->x_attr;
-	c = r_ptr->x_char;
-
-	/* Encode */
-	return (PICT(a, c));
+	*a = r_ptr->x_attr;
+	*c = r_ptr->x_char;
+	return;
     }
 }
 
@@ -499,31 +500,25 @@ static u16b hallucinatory_monster(void)
 /**
  * Hack -- Hallucinatory object
  */
-static u16b hallucinatory_object(void)
+static void hallucinatory_object(byte *a, wchar_t *c)
 {
-    object_kind *k_ptr;
-
-    byte a;
-    char c;
-
     while (1) {
 	/* Select a random object */
-	k_ptr = &k_info[randint0(z_info->k_max - 1) + 1];
+	object_kind *k_ptr = &k_info[randint0(z_info->k_max - 1) + 1];
 
 	/* Skip non-entries */
 	if (!k_ptr->name)
 	    continue;
 
 	/* Retrieve attr/char (HACK - without flavors) */
-	a = k_ptr->x_attr;
-	c = k_ptr->x_char;
+	*a = k_ptr->x_attr;
+	*c = k_ptr->x_char;
 
 	/* HACK - Skip empty entries */
-	if ((a == 0) || (c == 0))
+	if ((*a == 0) || (*c == 0))
 	    continue;
 
-	/* Encode */
-	return (PICT(a, c));
+	return;
     }
 }
 
@@ -587,34 +582,36 @@ bool dtrap_edge(int y, int x)
 /**
  * Apply text lighting effects
  */
-static void grid_get_attr(grid_data *g, byte *a, feature_type *f_ptr)
+static void grid_get_attr(grid_data *g, byte *a)
 {
-	/* Trap detect edge, but don't colour traps themselves, or treasure */
-	if (g->trapborder && tf_has(f_ptr->flags, TF_FLOOR) &&
-	    !((int) g->trap < trap_max))
-	{
-		if (g->in_view)
-			*a = TERM_L_GREEN;
-		else
-			*a = TERM_GREEN;
-	}
-	else if (g->f_idx == FEAT_FLOOR)
-	{
-		if (g->lighting == FEAT_LIGHTING_BRIGHT) {
-			if (*a == TERM_WHITE)
-				*a = TERM_YELLOW;
-		} else if (g->lighting == FEAT_LIGHTING_DARK) {
-			if (*a == TERM_WHITE)
-				*a = TERM_L_DARK;
-		}
-	}
+    feature_type *f_ptr = &f_info[g->f_idx];
+
+    /* Trap detect edge, but don't colour traps themselves, or treasure */
+    if (g->trapborder && tf_has(f_ptr->flags, TF_FLOOR) &&
+	!((int) g->trap < trap_max))
+    {
+	if (g->in_view)
+	    *a = TERM_L_GREEN;
 	else
-	{
-		if (g->lighting == FEAT_LIGHTING_DARK) {
-			if (*a == TERM_WHITE)
-				*a = TERM_SLATE;
-		}
+	    *a = TERM_GREEN;
+    }
+    else if (tf_has(f_ptr->flags, TF_TORCH))
+    {
+	if (g->lighting == FEAT_LIGHTING_BRIGHT) {
+	    if (*a == TERM_WHITE)
+		*a = TERM_YELLOW;
+	} else if (g->lighting == FEAT_LIGHTING_DARK) {
+	    if (*a == TERM_WHITE)
+		*a = TERM_L_DARK;
 	}
+    }
+    else
+    {
+	if (g->lighting == FEAT_LIGHTING_DARK) {
+	    if (*a == TERM_WHITE)
+		*a = TERM_SLATE;
+	}
+    }
 }
 
 
@@ -653,19 +650,19 @@ static void grid_get_attr(grid_data *g, byte *a, feature_type *f_ptr)
  * This will probably be done outside of the current text->graphics mappings
  * though.
  */
-void grid_data_as_text(grid_data *g, byte *ap, char *cp, byte *tap, char *tcp)
+void grid_data_as_text(grid_data *g, byte *ap, wchar_t *cp, byte *tap, wchar_t *tcp)
 {
 	feature_type *f_ptr = &f_info[g->f_idx];
 	
 	byte a = f_ptr->x_attr[g->lighting];
-	char c = f_ptr->x_char[g->lighting];
+	wchar_t c = f_ptr->x_char[g->lighting];
 
 	/* Don't display hidden objects */
 	bool ignore_objects = tf_has(f_ptr->flags, TF_HIDE_OBJ);
               
 	/* Check for trap detection boundaries */
 	if (use_graphics == GRAPHICS_NONE || use_graphics == GRAPHICS_PSEUDO)
-	    grid_get_attr(g, &a, f_ptr);
+	    grid_get_attr(g, &a);
 
 	/* Save the terrain info for the transparency effects */
 	(*tap) = a;
@@ -690,10 +687,7 @@ void grid_data_as_text(grid_data *g, byte *ap, char *cp, byte *tap, char *tcp)
 		if (g->hallucinate)
 		{
 			/* Just pick a random object to display. */
-			int i = hallucinatory_object();
-			
-			a = PICT_A(i);
-			c = PICT_C(i);
+		    hallucinatory_object(&a, &c);
 		}
 		else
 		{
@@ -720,10 +714,7 @@ void grid_data_as_text(grid_data *g, byte *ap, char *cp, byte *tap, char *tcp)
 		if (g->hallucinate)
 		{
 			/* Just pick a random monster to display. */
-			int i = hallucinatory_monster();
-			
-			a = PICT_A(i);
-			c = PICT_C(i);
+		    hallucinatory_monster(&a, &c);
 		}
 		else
 		{
@@ -731,14 +722,14 @@ void grid_data_as_text(grid_data *g, byte *ap, char *cp, byte *tap, char *tcp)
 			monster_race *r_ptr = &r_info[m_ptr->r_idx];
 				
 			byte da;
-			char dc;
+			wchar_t dc;
 			
 			/* Desired attr & char */
 			da = r_ptr->x_attr;
 			dc = r_ptr->x_char;
 
 			/* Special attr/char codes */
-			if ((da & 0x80) && (dc & 0x80))
+			if (da & 0x80)
 			{
 				/* Use attr */
 				a = da;
@@ -1136,7 +1127,7 @@ void move_cursor_relative(int y, int x)
  *
  * Note the use of "Term_queue_char()" for efficiency.
  */
-static void print_rel_map(char c, byte a, int y, int x)
+static void print_rel_map(wchar_t c, byte a, int y, int x)
 {
 	int ky, kx;
 
@@ -1199,7 +1190,7 @@ static void print_rel_map(char c, byte a, int y, int x)
  *
  * The main screen will always be at least 24x80 in size.
  */
-void print_rel(char c, byte a, int y, int x)
+void print_rel(wchar_t c, byte a, int y, int x)
 {
 	int ky, kx;
 	int vy, vx;
@@ -1305,9 +1296,9 @@ void light_spot(int y, int x)
 static void prt_map_aux(void)
 {
 	byte a;
-	char c;
+	wchar_t c;
 	byte ta;
-	char tc;
+	wchar_t tc;
 	grid_data g;
 
 	int y, x;
@@ -1369,9 +1360,9 @@ static void prt_map_aux(void)
 void prt_map(void)
 {
 	byte a;
-	char c;
+	wchar_t c;
 	byte ta;
-	char tc;
+	wchar_t tc;
 	grid_data g;
 
 	int y, x;
@@ -1402,7 +1393,7 @@ void prt_map(void)
 
 			if ((tile_width > 1) || (tile_height > 1))
 			{
-			        Term_big_queue_char(Term, vx, vy, a, c, TERM_WHITE, ' ');
+			        Term_big_queue_char(Term, vx, vy, a, c, TERM_WHITE, L' ');
 	      
 				if (tile_width > 1)
 				{
@@ -1491,7 +1482,7 @@ void display_map(int *cy, int *cx)
     grid_data g;
 
     byte ta;
-    char tc;
+    wchar_t tc;
 
     byte tp;
 
@@ -1524,7 +1515,7 @@ void display_map(int *cy, int *cx)
 
     /* Nothing here */
     ta = TERM_WHITE;
-    tc = ' ';
+    tc = L' ';
 
     /* Clear the priorities */
     for (y = 0; y < map_hgt; ++y) 

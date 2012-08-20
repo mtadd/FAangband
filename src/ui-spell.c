@@ -215,7 +215,7 @@ static menu_type *spell_menu_new(const object_type *o_ptr,
     menu_type *m = menu_new(MN_SKIN_SCROLL, &spell_menu_iter);
     struct spell_menu_data *d = mem_alloc(sizeof *d);
 
-    region loc = { -60, 1, 60, -99 };
+    region loc = { -65, 1, 65, -99 };
 
     /* collect spells from object */
     d->n_spells = spell_collect_from_book(o_ptr, d->spells);
@@ -261,11 +261,15 @@ static void spell_menu_destroy(menu_type *m)
 static int spell_menu_select(menu_type *m, const char *noun, const char *verb)
 {
     struct spell_menu_data *d = menu_priv(m);
+    char buf[80];
 
     screen_save();
-
     region_erase_bordered(&m->active);
-    prt(format("%^s which %s? ", verb, noun), 0, 0);
+
+    /* Format, capitalise and display */
+    strnfmt(buf, sizeof buf, "%s which %s? ", verb, noun);
+    my_strcap(buf);
+    prt(buf, 0, 0);
 
     menu_select(m, 0, TRUE);
 

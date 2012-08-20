@@ -23,7 +23,7 @@
 #include "squelch.h"
 #include "trap.h"
 
-/* 
+/*
  * Height of the help screen; any higher than 4 will overlap the health
  * bar which we want to keep in targeting mode.
  */
@@ -41,9 +41,9 @@ u16b target_who;
 u16b target_what;
 
 /* Target location */
-s16b target_x, target_y;
+static s16b target_x, target_y;
 
-
+#define TS_INITIAL_SIZE	20
 
 /*** Functions ***/
 
@@ -412,7 +412,7 @@ static int cmp_distance(const void *a, const void *b)
 /*
  * Hack -- help "select" a location (see below)
  */
-static s16b target_pick(int y1, int x1, int dy, int dx)
+static s16b target_pick(int y1, int x1, int dy, int dx, struct point_set *targets)
 {
     int i, v;
 
@@ -422,10 +422,11 @@ static s16b target_pick(int y1, int x1, int dy, int dx)
 
 
     /* Scan the locations */
-    for (i = 0; i < temp_n; i++) {
+    for (i = 0; i < point_set_size(targets); i++)
+    {
 	/* Point 2 */
-	x2 = temp_x[i];
-	y2 = temp_y[i];
+	x2 = targets->pts[i].x;
+	y2 = targets->pts[i].y;
 
 	/* Directed distance */
 	x3 = (x2 - x1);
@@ -518,16 +519,12 @@ static bool target_set_interactive_accept(int y, int x)
 }
 
 /*
- * Prepare the "temp" array for "target_interactive_set"
- *
- * Return the number of target_able monsters in the set.
+ * Return a target set of target_able monsters.
  */
-/* XXX: Untangle this. The whole temp_* thing is complete madness. */
-static void target_set_interactive_prepare(int mode)
+static struct point_set *target_set_interactive_prepare(int mode)
 {
     int y, x;
-    struct loc *pts = mem_zalloc(sizeof(*pts) * SCREEN_HGT * SCREEN_WID);
-    unsigned int n = 0;
+    struct point_set *targets = point_set_new(TS_INITIAL_SIZE);
 
     /* Scan the current panel */
     for (y = Term->offset_y; y < Term->offset_y + SCREEN_HGT; y++) {
@@ -563,22 +560,13 @@ static void target_set_interactive_prepare(int mode)
 	    }
 
 	    /* Save the location */
-	    pts[n].x = x;
-	    pts[n].y = y;
-	    n++;
+	    add_to_point_set(targets, y, x);
 	}
     }
 
-    sort(pts, n, sizeof(*pts), cmp_distance);
-
-    /* Reset "temp" array */
-    temp_n = n;
-    while (n--) {
-	temp_x[n] = pts[n].x;
-	temp_y[n] = pts[n].y;
-    }
+    sort(targets->pts, point_set_size(targets), sizeof(*(targets->pts)), cmp_distance);
+    return targets;
 }
-
 
 /*
  * Perform the minimum "whole panel" adjustment to ensure that the given
@@ -592,7 +580,7 @@ bool adjust_panel_help(int y, int x, bool help)
 
     int j;
 
-    int screen_hgt_main = help ? (Term->hgt - ROW_MAP - 3)
+    int screen_hgt_main = help ? (Term->hgt - ROW_MAP - 3) 
 	: (Term->hgt - ROW_MAP - 1);
 
     /* Scan windows */
@@ -677,7 +665,7 @@ static void target_display_help(bool monster, bool free)
     int wid, hgt, help_loc;
     Term_get_size(&wid, &hgt);
     help_loc = hgt - HELP_HEIGHT;
-
+	
     /* Clear */
     clear_from(help_loc);
 
@@ -711,7 +699,7 @@ static void target_display_help(bool monster, bool free)
 	text_out_c(TERM_L_GREEN, "o");
 	text_out("' allows free selection. ");
     }
-
+	
     if (monster || free) {
 	text_out("'");
 	text_out_c(TERM_L_GREEN, "t");
@@ -808,7 +796,7 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 	    query = inkey_ex();
 
 	    /* Stop on everything but "return" */
-	    if ((query.key.code != '\n') && (query.key.code != '\r'))
+	    if (query.key.code != KC_ENTER)
 		break;
 
 	    /* Repeat forever */
@@ -894,8 +882,7 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 		}
 
 		/* Stop on everything but "return"/"space" */
-		if ((query.key.code != '\n') && (query.key.code != '\r')
-		    && (query.key.code != ' '))
+		if ((query.key.code != KC_ENTER) && (query.key.code != ' '))
 		    break;
 
 		/* Sometimes stop at "space" key */
@@ -946,8 +933,7 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 		    query = inkey_ex();
 
 		    /* Stop on everything but "return"/"space" */
-		    if ((query.key.code != '\n') && (query.key.code != '\r')
-			&& (query.key.code != ' '))
+		    if ((query.key.code != KC_ENTER) && (query.key.code != ' '))
 			break;
 
 		    /* Sometimes stop at "space" key */
@@ -1015,8 +1001,7 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 		query = inkey_ex();
 		
 		/* Stop on everything but "return"/"space" */
-		if ((query.key.code != '\n') && (query.key.code != '\r')
-		    && (query.key.code != ' '))
+		if ((query.key.code != KC_ENTER) && (query.key.code != ' '))
 		    break;
 		
 		/* Sometimes stop at "space" key */
@@ -1126,8 +1111,7 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 		query = inkey_ex();
 
 		/* Stop on everything but "return"/"space" */
-		if ((query.key.code != '\n') && (query.key.code != '\r')
-		    && (query.key.code != ' '))
+		if ((query.key.code != KC_ENTER) && (query.key.code != ' '))
 		    break;
 
 		/* Sometimes stop at "space" key */
@@ -1173,7 +1157,7 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 		name = "unknown grid";
 
 	    /* Pick a prefix */
-	    if (*s2 && (feat != FEAT_FLOOR))
+	    if (*s2 && (feat != FEAT_FLOOR) && (feat != FEAT_ROAD))
 		s2 = "in ";
 
 	    /* Pick proper indefinite article */
@@ -1186,15 +1170,15 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 	    }
 
 	    /* Hack - destination of surface paths */
-	    if ((feat >= FEAT_LESS_NORTH) && (feat <= FEAT_MORE_WEST)) 
+	    if (tf_has(f_ptr->flags, TF_PATH))
 	    {
 		s4 = " to ";
 		s5 = locality_name[stage_map[stage_map[p_ptr->stage]
 					     [NORTH +
 					      (feat - FEAT_LESS_NORTH) / 2]]
 				   [LOCALITY]];
-	    } 
-	    else 
+	    }
+	    else
 	    {
 		s4 = "";
 		s5 = "";
@@ -1216,13 +1200,12 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 	    query = inkey_ex();
 
 	    /* Stop on everything but "return"/"space" */
-	    if ((query.key.code != '\n') && (query.key.code != '\r')
-		&& (query.key.code != ' '))
+	    if ((query.key.code != KC_ENTER) && (query.key.code != ' '))
 		break;
 	}
 
 	/* Stop on everything but "return" */
-	if ((query.key.code != '\n') && (query.key.code != '\r'))
+	if (query.key.code != KC_ENTER)
 	    break;
     }
 
@@ -1231,8 +1214,71 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
 }
 
 
+bool target_set_closest(int mode)
+{
+    int y, x, m_idx;
+    monster_type *m_ptr;
+    char m_name[80];
+    bool visibility;
+    struct point_set *targets;
+
+    /* Cancel old target */
+    target_set_monster(0);
+
+    /* Get ready to do targetting */
+    targets = target_set_interactive_prepare(mode);
+
+    /* If nothing was prepared, then return */
+    if (point_set_size(targets) < 1)
+    {
+	msg("No Available Target.");
+	point_set_dispose(targets);
+	return FALSE;
+    }
+
+    /* Find the first monster in the queue */
+    y = targets->pts[0].y;
+    x = targets->pts[0].x;
+    m_idx = cave_m_idx[y][x];
+	
+    /* Target the monster, if possible */
+    if ((m_idx <= 0) || !target_able(m_idx))
+    {
+	msg("No Available Target.");
+	point_set_dispose(targets);
+	return FALSE;
+    }
+
+    /* Target the monster */
+    m_ptr = &m_list[m_idx];
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0x100);
+    if (!(mode & TARGET_QUIET))
+	msg("%s is targeted.", m_name);
+    Term_fresh();
+
+    /* Set up target information */
+    monster_race_track(m_ptr->r_idx);
+    health_track(cave_m_idx[y][x]);
+    target_set_monster(m_idx);
+
+    /* Visual cue */
+    Term_get_cursor(&visibility);
+    (void)Term_set_cursor(TRUE);
+    move_cursor_relative(y, x);
+    Term_redraw_section(x, y, x, y);
+
+    /* TODO: what's an appropriate amount of time to spend highlighting */
+    Term_xtra(TERM_XTRA_DELAY, 150);
+    (void)Term_set_cursor(visibility);
+
+    point_set_dispose(targets);
+    return TRUE;
+}
+
+
 /**
  * Draw a visible path over the squares between (x1,y1) and (x2,y2).
+ *
  * The path consists of "*", which are white except where there is a
  * monster, object or feature in the grid.
  *
@@ -1247,34 +1293,28 @@ static ui_event target_set_interactive_aux(int y, int x, int mode)
  *
  * From NPPangband
  */
-static int draw_path(u16b * path, char *c, byte * a, int y1, int x1, int y2,
-		     int x2)
+static int draw_path(u16b path_n, u16b *path_g, wchar_t *c, byte *a, int y1, int x1)
 {
     int i;
-    int max;
     bool on_screen;
-    char c1;
-    byte a1;
-
-    /* Find the path. */
-    max = project_path(path, MAX_RANGE, y1, x1, y2, x2, PROJECT_THRU);
 
     /* No path, so do nothing. */
-    if (max < 1)
-	return 0;
+    if (path_n < 1) return 0;
 
-    /* The starting square is never drawn, but notice if it is being displayed. 
-     * In theory, it could be the last such square. */
+    /* The starting square is never drawn, but notice if it is being
+     * displayed. In theory, it could be the last such square.
+     */
     on_screen = panel_contains(y1, x1);
 
     /* Draw the path. */
-    for (i = 0; i < max; i++) {
+    for (i = 0; i < path_n; i++) {
 	byte colour;
 
 	/* Find the co-ordinates on the level. */
-	int y = GRID_Y(path[i]);
-	int x = GRID_X(path[i]);
-	/* 
+	int y = GRID_Y(path_g[i]);
+	int x = GRID_X(path_g[i]);
+
+	/*
 	 * As path[] is a straight line and the screen is oblong,
 	 * there is only section of path[] on-screen.
 	 * If the square being drawn is visible, this is part of it.
@@ -1282,55 +1322,44 @@ static int draw_path(u16b * path, char *c, byte * a, int y1, int x1, int y2,
 	 * is found or the last square is reached.
 	 * If some of it has been drawn, finish now as there are no
 	 * more visible squares to draw.
-	 *
 	 */
-	if (panel_contains(y, x))
-	    on_screen = TRUE;
-	else if (on_screen)
-	    break;
-	else
-	    continue;
+	if (panel_contains(y,x)) on_screen = TRUE;
+	else if (on_screen) break;
+	else continue;
 
 	/* Find the position on-screen */
-	move_cursor_relative(y, x);
+	move_cursor_relative(y,x);
 
 	/* This square is being overwritten, so save the original. */
-	Term_what(Term->scr->cx, Term->scr->cy, a + i, c + i);
+	Term_what(Term->scr->cx, Term->scr->cy, a+i, c+i);
 
-	/* Choose a colour - such a hack now! */
-	/* Visible monsters are red. */
+	/* Choose a colour. */
 	if (cave_m_idx[y][x] && m_list[cave_m_idx[y][x]].ml) {
-	    colour = GF_FIRE;
+	    /* Visible monsters are red. */
+	    colour = TERM_L_RED;
 	}
 
-	/* Known objects are yellow. */
-	else if (cave_o_idx[y][x] && o_list[cave_o_idx[y][x]].marked) {
-	    colour = GF_SOUND;
-	}
-
-	/* Known walls are blue. */
-	else if (!cave_project(y, x) && 
-		 (cave_has(cave_info[y][x], CAVE_MARK) || 
-		  player_can_see_bold(y, x))) 
-	{
-	    colour = GF_ELEC;
-	}
-	/* Unknown squares are grey. */
-	else if (!cave_has(cave_info[y][x], CAVE_MARK) && 
-		 !player_can_see_bold(y, x)) {
-	    colour = GF_DARK;
-	}
-	/* Unoccupied squares are white. */
-	else {
-	    colour = GF_COLD;
-	}
-
-	/* Hack - Obtain attr/char */
-	a1 = gf_to_attr[colour][BOLT_NO_MOTION];
-	c1 = gf_to_char[colour][BOLT_NO_MOTION];
-
+	else if (cave_o_idx[y][x] && o_list[cave_o_idx[y][x]].marked)
+	    /* Known objects are yellow. */
+	    colour = TERM_YELLOW;
+	
+	else if (!cave_project(y, x) &&
+		 (cave_has(cave_info[y][x], CAVE_MARK) ||
+		  player_can_see_bold(y, x)))
+	    /* Known walls are blue. */
+	    colour = TERM_BLUE;
+	
+	else if (!cave_has(cave_info[y][x], CAVE_MARK) &&
+		 !player_can_see_bold(y, x)) 
+	    /* Unknown squares are grey. */
+	    colour = TERM_L_DARK;
+	
+	else
+	    /* Unoccupied squares are white. */
+	    colour = TERM_WHITE;
+	
 	/* Draw the path segment */
-	print_rel(c1, a1, y, x);
+	(void)Term_addch(colour, L'*');
     }
     return i;
 }
@@ -1338,81 +1367,20 @@ static int draw_path(u16b * path, char *c, byte * a, int y1, int x1, int y2,
 /**
  * Load the attr/char at each point along "path" which is on screen from
  * "a" and "c". This was saved in draw_path().
- *
- * From NPPangband
  */
-static void load_path(int max, u16b * path, char *c, byte * a)
-{
+static void load_path(u16b path_n, u16b *path_g, wchar_t *c, byte *a) {
     int i;
-    for (i = 0; i < max; i++) {
-	if (!panel_contains(GRID_Y(path[i]), GRID_X(path[i])))
-	    continue;
+    for (i = 0; i < path_n; i++) {
+	int y = GRID_Y(path_g[i]);
+	int x = GRID_X(path_g[i]);
 
-	move_cursor_relative(GRID_Y(path[i]), GRID_X(path[i]));
-
-	(void) Term_addch(a[i], c[i]);
+	if (!panel_contains(y, x)) continue;
+	move_cursor_relative(y, x);
+	Term_addch(a[i], c[i]);
     }
 
     Term_fresh();
 }
-
-
-bool target_set_closest(int mode)
-{
-    int y, x, m_idx;
-    monster_type *m_ptr;
-    char m_name[80];
-    bool visibility;
-
-    /* Cancel old target */
-    target_set_monster(0);
-
-    /* Get ready to do targetting */
-    target_set_interactive_prepare(mode);
-
-    /* If nothing was prepared, then return */
-    if (temp_n < 1) {
-	msg("No Available Target.");
-	return FALSE;
-    }
-
-    /* Find the first monster in the queue */
-    y = temp_y[0];
-    x = temp_x[0];
-    m_idx = cave_m_idx[y][x];
-
-    /* Target the monster, if possible */
-    if ((m_idx <= 0) || !target_able(m_idx)) {
-	msg("No Available Target.");
-	return FALSE;
-    }
-
-    /* Target the monster */
-    m_ptr = &m_list[m_idx];
-    monster_desc(m_name, sizeof(m_name), m_ptr, 0x00);
-    if (!(mode & TARGET_QUIET))
-	msg("%^s is targeted.", m_name);
-    Term_fresh();
-
-    /* Set up target information */
-    monster_race_track(m_ptr->r_idx);
-    health_track(cave_m_idx[y][x]);
-    target_set_monster(m_idx);
-
-    /* Visual cue */
-    Term_get_cursor(&visibility);
-    (void) Term_set_cursor(TRUE);
-    move_cursor_relative(y, x);
-    Term_redraw_section(x, y, x, y);
-
-    /* TODO: what's an appropriate amount of time to spend highlighting */
-    Term_xtra(TERM_XTRA_DELAY, 150);
-    (void) Term_set_cursor(visibility);
-
-    return TRUE;
-}
-
-
 
 
 /*
@@ -1476,13 +1444,14 @@ bool target_set_interactive(int mode, int x, int y)
 
     bool failure_message = FALSE;
 
-    ui_event query;
+    ui_event press;
 
     /* These are used for displaying the path to the target */
-    u16b *path = malloc(MAX_RANGE * sizeof(*path));
-    char *path_char = malloc(MAX_RANGE * sizeof(*path_char));
+    int path_n;
+    u16b path_g[256];
+    wchar_t *path_char = malloc(MAX_RANGE * sizeof(*path_char));
     byte *path_attr = malloc(MAX_RANGE * sizeof(*path_attr));
-    int max = 0;
+    struct point_set *targets;
 
     /* If we haven't been given an initial location, start on the player. */
     if (x == -1 || y == -1) {
@@ -1513,30 +1482,32 @@ bool target_set_interactive(int mode, int x, int y)
     /* Calculate the window location for the help prompt */
     Term_get_size(&wid, &hgt);
     help_prompt_loc = hgt - 1;
-
+	
     /* Display the help prompt */
     prt("Press '?' for help.", help_prompt_loc, 0);
 
     /* Prepare the "temp" array */
-    target_set_interactive_prepare(mode);
+    targets = target_set_interactive_prepare(mode);
 
     /* Start near the player */
     m = 0;
 
     /* Interact */
     while (!done) {
+	bool path_drawn = FALSE;
+		
 	/* Interesting grids */
-	if (flag && temp_n) {
-	    y = temp_y[m];
-	    x = temp_x[m];
-
+	if (flag && point_set_size(targets))
+	{
+	    y = targets->pts[m].y;
+	    x = targets->pts[m].x;
 
 	    /* Adjust panel if needed */
 	    if (adjust_panel_help(y, x, help)) {
 		/* Handle stuff */
 		handle_stuff(p_ptr);
 	    }
-
+		
 	    /* Update help */
 	    if (help) {
 		bool good_target = FALSE;
@@ -1549,16 +1520,19 @@ bool target_set_interactive(int mode, int x, int y)
 		target_display_help(good_target, !(flag && temp_n));
 	    }
 
+	    /* Find the path. */
+	    path_n = project_path(path_g, MAX_RANGE, py, px, y, x, PROJECT_THRU);
+
 	    /* Draw the path in "target" mode. If there is one */
 	    if (mode & (TARGET_KILL | TARGET_OBJ))
-		max = draw_path(path, path_char, path_attr, py, px, y, x);
+		path_drawn = draw_path(path_n, path_g, path_char, path_attr, py, px);
 
 	    /* Describe and Prompt */
-	    query = target_set_interactive_aux(y, x, mode);
+	    press = target_set_interactive_aux(y, x, mode);
 
 	    /* Remove the path */
-	    if (max > 0)  load_path (max, path, path_char, path_attr);
-          
+	    if (path_drawn) load_path(path_n, path_g, path_char, path_attr);
+
 	    /* Cancel tracking */
 	    /* health_track(0); */
 
@@ -1566,345 +1540,467 @@ bool target_set_interactive(int mode, int x, int y)
 	    d = 0;
 
 
-	    /* If we click, move the target location to the click and switch to 
-	     * "free targetting" mode by unsetting 'flag'. This means we get
-	     * some info about wherever we've picked. */
-	    if (query.type == EVT_MOUSE) {
-		x = KEY_GRID_X(query);
-		y = KEY_GRID_Y(query);
-		flag = FALSE;
-		break;
-	    } else {
+	    /* Analyze */
+	    if (press.type == EVT_MOUSE) {
+		if (press.mouse.button == 3) {
+		    /* give the target selection command */
+		    press.mouse.button = 2;
+		    press.mouse.mods = KC_MOD_CONTROL;
+		}
+		if (press.mouse.button == 2) {
+		    y = KEY_GRID_Y(press);//.mouse.y;
+		    x = KEY_GRID_X(press);//.mouse.x;
+		    if (press.mouse.mods & KC_MOD_CONTROL) {
+			/* same as keyboard target selection command below */
+			int m_idx = cave_m_idx[y][x];
 
-		/* Analyze */
-		switch (query.key.code) {
+			if ((m_idx > 0) && target_able(m_idx)) {
+			    monster_type *m_ptr = &m_list[m_idx];
+			    /* Set up target information */
+			    monster_race_track(m_ptr->r_idx);
+			    health_track(m_idx);
+			    /*health_track(p_ptr, m_idx);*/
+			    target_set_monster(m_idx);
+			    done = TRUE;
+			} else {
+			    bell("Illegal target!");
+			}
+		    } else
+			if (press.mouse.mods & KC_MOD_ALT) {
+			    /* go to spot - same as 'g' command below */
+			    cmd_insert(CMD_PATHFIND);
+			    cmd_set_arg_point(cmd_get_top(), 0, y, x);
+			    done = TRUE;
+			} else
+			{
+			    /* cancel look mode */
+			    done = TRUE;
+			}
+		} else
+		{
+		    y = KEY_GRID_Y(press);//.mouse.y;
+		    x = KEY_GRID_X(press);//.mouse.x;
+		    if (cave_m_idx[y][x] || cave_o_idx[y][x]){
+			/* reset the flag, to make sure we stay in this mode if
+			 * something is actually there */
+			flag = FALSE;
+			/* scan the interesting list and see if there is 
+			 * anything here */
+			for (i = 0; i < point_set_size(targets); i++) {
+			    if ((y == targets->pts[i].y) && (x == targets->pts[i].x)) {
+				m = i;
+				flag = TRUE;
+				break;
+			    }
+			}
+		    } else {
+			flag = FALSE;
+		    }
+		}
+	    } else
+		switch (press.key.code) {
 		case ESCAPE:
 		case 'q':
-		    {
-			done = TRUE;
-			break;
-		    }
+		{
+		    done = TRUE;
+		    break;
+		}
 
 		case ' ':
 		case '*':
 		case '+':
-		    {
-			if (++m == temp_n) {
-			    m = 0;
-			}
+		{
+		    if (++m == point_set_size(targets))
+			m = 0;
 
-			break;
-		    }
+		    break;
+		}
 
 		case '-':
-		    {
-			if (m-- == 0)
-			    m = temp_n - 1;
+		{
+		    if (m-- == 0)
+			m = point_set_size(targets) - 1;
 
-			break;
-		    }
+		    break;
+		}
 
 		case 'p':
-		    {
-			/* Recenter around player */
-			verify_panel();
-
-			/* Handle stuff */
-			handle_stuff(p_ptr);
-
-			y = py;
-			x = px;
-		    }
+		{
+		    /* Recenter around player */
+		    verify_panel();
+		    
+		    /* Handle stuff */
+		    handle_stuff(p_ptr);
+		    
+		    y = py;
+		    x = px;
+		}
 
 		case 'o':
-		    {
-			flag = FALSE;
-			break;
-		    }
-
+		{
+		    flag = FALSE;
+		    break;
+		}
+		
 		case 'm':
-		    {
-			break;
-		    }
+		{
+		    break;
+		}
 
 		case 't':
 		case '5':
 		case '0':
 		case '.':
-		    {
-			if (mode & TARGET_KILL) {
-			    int m_idx = cave_m_idx[y][x];
-
-			    if ((m_idx > 0) && target_able(m_idx)) {
-				health_track(m_idx);
-				target_set_monster(m_idx);
-				done = TRUE;
-			    } else {
-				bell("Illegal target!");
-			    }
-			} else if (mode & TARGET_OBJ) {
-			    int o_idx = cave_o_idx[y][x];
-
-			    if ((o_idx > 0) && target_able_obj(o_idx)) {
-				target_set_object(o_idx);
-				done = TRUE;
-			    } else {
-				bell("Illegal target!");
-			    }
+		{
+		    if (mode & TARGET_KILL) {
+			int m_idx = cave_m_idx[y][x];
+			
+			if ((m_idx > 0) && target_able(m_idx)) {
+			    health_track(m_idx);
+			    target_set_monster(m_idx);
+			    done = TRUE;
+			} else {
+			    bell("Illegal target!");
 			}
-			break;
+		    } else if (mode & TARGET_OBJ) {
+			int o_idx = cave_o_idx[y][x];
+			
+			if ((o_idx > 0) && target_able_obj(o_idx)) {
+			    target_set_object(o_idx);
+			    done = TRUE;
+			} else {
+			    bell("Illegal target!");
+			}
 		    }
-
-		case 'g':
-		    {
-			cmd_insert(CMD_PATHFIND);
-			cmd_set_arg_point(cmd_get_top(), 0, y, x);
-			done = TRUE;
-			break;
-		    }
-
-		case '?':
-		    {
-			help = !help;
-
-			/* Redraw main window */
-			p_ptr->redraw |=
-			    (PR_BASIC | PR_EXTRA | PR_MAP | PR_EQUIP);
-			Term_clear();
-			handle_stuff(p_ptr);
-			if (!help)
-			    prt("Press '?' for help.", help_prompt_loc, 0);
-
-			break;
-		    }
-
-		default:
-		    {
-			/* Extract direction */
-			d = target_dir(query.key);
-
-			/* Oops */
-			if (!d)
-			    bell("Illegal command for target mode!");
-
-			break;
-		    }
+		    break;
 		}
 
-	    }
+		case 'g':
+		{
+		    cmd_insert(CMD_PATHFIND);
+		    cmd_set_arg_point(cmd_get_top(), 0, y, x);
+		    done = TRUE;
+		    break;
+		}
+				
+		case '?':
+		{
+		    help = !help;
+		    
+		    /* Redraw main window */
+		    p_ptr->redraw |=
+			(PR_BASIC | PR_EXTRA | PR_MAP | PR_EQUIP);
+		    Term_clear();
+		    handle_stuff(p_ptr);
+		    if (!help)
+			prt("Press '?' for help.", help_prompt_loc, 0);
+		    
+		    break;
+		}
+		
+		default:
+		{
+		    /* Extract direction */
+		    d = target_dir(press.key);
+
+		    /* Oops */
+		    if (!d)
+			bell("Illegal command for target mode!");
+		    
+		    break;
+		}
+		
+		}
 
 	    /* Hack -- move around */
 	    if (d) {
-		int old_y = temp_y[m];
-		int old_x = temp_x[m];
-
+		int old_y = targets->pts[m].y;
+		int old_x = targets->pts[m].x;
+		
 		/* Find a new monster */
-		i = target_pick(old_y, old_x, ddy[d], ddx[d]);
-
+		i = target_pick(old_y, old_x, ddy[d], ddx[d], targets);
+		
 		/* Scroll to find interesting grid */
 		if (i < 0) {
 		    int old_wy = Term->offset_y;
 		    int old_wx = Term->offset_x;
-
-		    /* Change if legal */#include "angband.h"
-
+		    
+		    /* Change if legal */
+		    
 		    if (change_panel(d)) {
 			/* Recalculate interesting grids */
-			target_set_interactive_prepare(mode);
-
+			point_set_dispose(targets);
+			targets = target_set_interactive_prepare(mode);
+			
 			/* Find a new monster */
-			i = target_pick(old_y, old_x, ddy[d], ddx[d]);
-
+			i = target_pick(old_y, old_x, ddy[d], ddx[d], targets);
+			
 			/* Restore panel if needed */
 			if ((i < 0) && modify_panel(Term, old_wy, old_wx)) {
 			    /* Recalculate interesting grids */
-			    target_set_interactive_prepare(mode);
+			    point_set_dispose(targets);
+			    targets = target_set_interactive_prepare(mode);
 			}
-
+			
 			/* Handle stuff */
 			handle_stuff(p_ptr);
 		    }
 		}
-
+		
 		/* Use interesting grid if found */
 		if (i >= 0)
 		    m = i;
 	    }
 	}
-
+	
 	/* Objects need a specific target */
 	else if (mode & TARGET_OBJ) {
 	    done = TRUE;
 	    failure_message = TRUE;
 	}
-
+	
 	/* Arbitrary grids */
-	else {
+	else 
+	{
 	    /* Update help */
 	    if (help) {
 		bool good_target = ((cave_m_idx[y][x] > 0)
 				    && target_able(cave_m_idx[y][x]));
-		target_display_help(good_target, !(flag && temp_n));
+		target_display_help(good_target, !(flag && point_set_size(targets)));
 	    }
+	
+	    /* Find the path. */
+	    path_n = project_path(path_g, MAX_RANGE, py, px, y, x, PROJECT_THRU);
 
 	    /* Draw the path in "target" mode. If there is one */
 	    if (mode & (TARGET_KILL))
-		max = draw_path(path, path_char, path_attr, py, px, y, x);
+		path_drawn = draw_path (path_n, path_g, path_char, path_attr, py, px);
 
 	    /* Describe and Prompt (enable "TARGET_LOOK") */
-	    query = target_set_interactive_aux(y, x, mode | TARGET_LOOK);
+	    press = target_set_interactive_aux(y, x, mode | TARGET_LOOK);
 
 	    /* Remove the path */
-	    if (max > 0)  load_path (max, path, path_char, path_attr);
-          
+	    if (path_drawn)  load_path(path_n, path_g, path_char, path_attr);
+
 	    /* Cancel tracking */
 	    /* health_track(0); */
 
 	    /* Assume no direction */
 	    d = 0;
 
-	    if (query.type == EVT_MOUSE) {
-		/* We only target if we click somewhere where the cursor is
-		 * already (i.e. a double-click without a time limit) */
-		if (KEY_GRID_X(query) == x && KEY_GRID_Y(query) == y) {
-		    /* Make an attempt to target the monster on the given
-		     * square rather than the square itself (it seems this is
-		     * the more likely intention of clicking on a monster). */
-		    int m_idx = cave_m_idx[y][x];
 
-		    if ((m_idx > 0) && target_able(m_idx)) {
-			health_track(m_idx);
-			target_set_monster(m_idx);
-		    } else {
-			/* There is no monster, or it isn't targettable, so
-			 * target the location instead. */
-			target_set_location(y, x);
-		    }
-
-		    done = TRUE;
-		} else {
-		    /* Just move the cursor for now - another click will
-		     * target. */
-		    x = KEY_GRID_X(query);
-		    y = KEY_GRID_Y(query);
+	    /* Analyze the keypress */
+	    if (press.type == EVT_MOUSE) {
+		if (press.mouse.button == 3) {
+		    /* give the target selection command */
+		    press.mouse.button = 2;
+		    press.mouse.mods = KC_MOD_CONTROL;
 		}
-		break;
-	    } else {
+		if (press.mouse.button == 2) {
+		    if (mode & (TARGET_KILL)) {
+			if ((y == KEY_GRID_Y(press)) 
+			    && (x == KEY_GRID_X(press))) {
+			    d = -1;
+			}
+		    }
+		    y = KEY_GRID_Y(press);//.mouse.y;
+		    x = KEY_GRID_X(press);//.mouse.x;
+		    if (press.mouse.mods & KC_MOD_CONTROL) {
+			/* same as keyboard target selection command below */
+			target_set_location(y, x);
+			done = TRUE;
+		    } else
+			if (press.mouse.mods & KC_MOD_ALT) {
+			    /* go to spot - same as 'g' command below */
+			    cmd_insert(CMD_PATHFIND);
+			    cmd_set_arg_point(cmd_get_top(), 0, y, x);
+			    done = TRUE;
+			} else
+			{
+			    /* cancel look mode */
+			    done = TRUE;
+			    if (d == -1) {
+				target_set_location(y, x);
+				d = 0;
+			    }
+			}
+		} else
+		    /*if (press.mouse.button == 3) {
+		      } else*/
+		{
+		    int dungeon_hgt = DUNGEON_HGT;
+		    int dungeon_wid = DUNGEON_WID;
+		
+		    /* Adjust for town */
+		    if (p_ptr->depth == 0) 
+			town_adjust(&dungeon_hgt, &dungeon_wid);
 
-		/* Analyze the keypress */
-		switch (query.key.code) {
+		    y = KEY_GRID_Y(press);//.mouse.y;
+		    x = KEY_GRID_X(press);//.mouse.x;
+		
+		    if (Term) {
+			if (press.mouse.y <= 1) {
+			    /* move the screen north */
+			    y--;
+			} else
+			    if (press.mouse.y >= (Term->hgt - 2)) {
+				/* move the screen south */
+				y++;
+			    } else
+				if (press.mouse.x <= COL_MAP) {
+				    /* move the screen in west */
+				    x--;
+				} else
+				    if (press.mouse.x >= (Term->wid - 2)) {
+					/* move the screen east */
+					x++;
+				    }
+		    }
+		
+		    if (y < 0) y = 0;
+		    if (x < 0) x = 0;
+		    if (y >= dungeon_hgt-1) y = dungeon_hgt-1;
+		    if (x >= dungeon_wid-1) x = dungeon_wid-1;
+		
+		    /* Adjust panel if needed */
+		    if (adjust_panel_help(y, x, help))
+		    {
+			/* Handle stuff */
+			handle_stuff(p_ptr);
+		    
+			/* Recalculate interesting grids */
+			point_set_dispose(targets);
+			targets = target_set_interactive_prepare(mode);
+		    }
+		
+		    if (cave_m_idx[y][x] || cave_o_idx[y][x]) {
+			/* scan the interesting list and see if there's anything here */
+			for (i = 0; i < point_set_size(targets); i++) {
+			    if ((y == targets->pts[i].y) && (x == targets->pts[i].x)) {
+				m = i;
+				flag = TRUE;
+				break;
+			    }
+			}
+		    } else {
+			flag = FALSE;
+		    }
+		}
+	    } else
+		switch (press.key.code) 
+		{
 		case ESCAPE:
 		case 'q':
-		    {
-			done = TRUE;
-			break;
-		    }
-
+		{
+		    done = TRUE;
+		    break;
+		}
+	    
 		case ' ':
 		case '*':
 		case '+':
 		case '-':
-		    {
-			break;
-		    }
-
+		{
+		    break;
+		}
+	
 		case 'p':
-		    {
-			/* Recenter around player */
-			verify_panel();
-
-			/* Handle stuff */
-			handle_stuff(p_ptr);
-
-			y = p_ptr->py;
-			x = p_ptr->px;
-		    }
+		{
+		    /* Recenter around player */
+		    verify_panel();
+	    
+		    /* Handle stuff */
+		    handle_stuff(p_ptr);
+	    
+		    y = p_ptr->py;
+		    x = p_ptr->px;
+		}
 
 		case 'o':
-		    {
-			break;
-		    }
-
+		{
+		    break;
+		}
+	
 		case 'm':
+		{
+		    flag = TRUE;
+	    
+		    m = 0;
+		    bd = 999;
+	    
+		    /* Pick a nearby monster */
+		    for (i = 0; i < point_set_size(targets); i++)
 		    {
-			flag = TRUE;
-
-			m = 0;
-			bd = 999;
-
-			/* Pick a nearby monster */
-			for (i = 0; i < temp_n; i++) {
-			    t = distance(y, x, temp_y[i], temp_x[i]);
-
-			    /* Pick closest */
-			    if (t < bd) {
-				m = i;
-				bd = t;
-			    }
+			t = distance(y, x, targets->pts[i].y, targets->pts[i].x);
+		
+			/* Pick closest */
+			if (t < bd) {
+			    m = i;
+			    bd = t;
 			}
-
-			/* Nothing interesting */
-			if (bd == 999)
-			    flag = FALSE;
-
-			break;
 		    }
+	    
+		    /* Nothing interesting */
+		    if (bd == 999)
+			flag = FALSE;
+	    
+		    break;
+		}
 
 		case 't':
 		case '5':
 		case '0':
 		case '.':
-		    {
-			target_set_location(y, x);
-			done = TRUE;
-			break;
-		    }
-
-		case 'g':
-		    {
-			cmd_insert(CMD_PATHFIND);
-			cmd_set_arg_point(cmd_get_top(), 0, y, x);
-			done = TRUE;
-			break;
-		    }
-
-		case '?':
-		    {
-			help = !help;
-
-			/* Redraw main window */
-			p_ptr->redraw |=
-			    (PR_BASIC | PR_EXTRA | PR_MAP | PR_EQUIP);
-			Term_clear();
-			handle_stuff(p_ptr);
-			if (!help)
-			    prt("Press '?' for help.", help_prompt_loc, 0);
-
-			break;
-		    }
-
-		default:
-		    {
-			/* Extract a direction */
-			d = target_dir(query.key);
-
-			/* Oops */
-			if (!d)
-			    bell("Illegal command for target mode!");
-
-			break;
-		    }
+		{
+		    target_set_location(y, x);
+		    done = TRUE;
+		    break;
 		}
-
-	    }
-
+	
+		case 'g':
+		{
+		    cmd_insert(CMD_PATHFIND);
+		    cmd_set_arg_point(cmd_get_top(), 0, y, x);
+		    done = TRUE;
+		    break;
+		}
+	
+		case '?':
+		{
+		    help = !help;
+	    
+		    /* Redraw main window */
+		    p_ptr->redraw |=
+			(PR_BASIC | PR_EXTRA | PR_MAP | PR_EQUIP);
+		    Term_clear();
+		    handle_stuff(p_ptr);
+		    if (!help)
+			prt("Press '?' for help.", help_prompt_loc, 0);
+	    
+		    break;
+		}
+	
+		default:
+		{
+		    /* Extract a direction */
+		    d = target_dir(press.key);
+	    
+		    /* Oops */
+		    if (!d)
+			bell("Illegal command for target mode!");
+	    
+		    break;
+		}
+	    
+		}
+	
 	    /* Handle "direction" */
 	    if (d) {
 		int dungeon_hgt = DUNGEON_HGT;
 		int dungeon_wid = DUNGEON_WID;
 		int dy = ddy[d];
 		int dx = ddx[d];
-
+	    
 		/* Adjust for town */
 		if (p_ptr->depth == 0) town_adjust(&dungeon_hgt, &dungeon_wid);
 
@@ -1925,27 +2021,28 @@ bool target_set_interactive(int mode, int x, int y)
 		    x--;
 		else if (x <= 0)
 		    x++;
-
+	    
 		/* Slide into legality */
 		if (y >= dungeon_hgt - 1)
 		    y--;
 		else if (y <= 0)
 		    y++;
-
+	    
 		/* Adjust panel if needed */
 		if (adjust_panel_help(y, x, help)) {
 		    /* Handle stuff */
 		    handle_stuff(p_ptr);
-
+		
 		    /* Recalculate interesting grids */
-		    target_set_interactive_prepare(mode);
+		    point_set_dispose(targets);
+		    targets = target_set_interactive_prepare(mode);
 		}
 	    }
 	}
     }
 
     /* Forget */
-    temp_n = 0;
+    point_set_dispose(targets);
 
     /* Redraw as necessary */
     if (help) {
@@ -1959,11 +2056,10 @@ bool target_set_interactive(int mode, int x, int y)
 
     /* Recenter around player */
     verify_panel();
-
+    
     /* Handle stuff */
     handle_stuff(p_ptr);
 
-    free(path);
     free(path_char);
     free(path_attr);
 
@@ -1987,11 +2083,11 @@ bool target_set_interactive(int mode, int x, int y)
  */
 void target_get(s16b * col, s16b * row)
 {
-    assert(col);
-    assert(row);
+	assert(col);
+	assert(row);
 
-    *col = target_x;
-    *row = target_y;
+	*col = target_x;
+	*row = target_y;
 }
 
 
@@ -2000,7 +2096,7 @@ void target_get(s16b * col, s16b * row)
  */
 s16b target_get_monster(void)
 {
-    return target_who;
+	return target_who;
 }
 
 /**

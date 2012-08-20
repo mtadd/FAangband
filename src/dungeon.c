@@ -1506,12 +1506,12 @@ static void process_player(void)
 
     /* Add context-sensitive mouse buttons */
 
-    if (tf_has(f_ptr->flags, TF_STAIR) && !(feat % 2))
+    if (tf_has(f_ptr->flags, TF_UPSTAIR))
 	button_add("[<]", '<');
     else
 	button_kill('<');
 
-    if (tf_has(f_ptr->flags, TF_STAIR) && (feat % 2))
+    if (tf_has(f_ptr->flags, TF_DOWNSTAIR))
 	button_add("[>]", '>');
     else
 	button_kill('>');
@@ -2005,7 +2005,7 @@ static void dungeon(void)
 
     /* Make basic mouse buttons */
     (void) button_add("[ESC]", ESCAPE);
-    (void) button_add("[Ent]", '\r');
+    (void) button_add("[Ent]", KC_ENTER);
     (void) button_add("[Spc]", ' ');
     (void) button_add("[Rpt]", 'n');
     (void) button_add("[Std]", ',');
@@ -2108,6 +2108,10 @@ static void dungeon(void)
 
 	    /* if still alive */
 	    if (!p_ptr->leaving) {
+		/* Mega hack -redraw big graphics - sorry NRM */
+		if ((tile_width > 1) || (tile_height > 1)) 
+		    p_ptr->redraw |= (PR_MAP);
+
 		/* Process the player */
 		process_player();
 	    }
@@ -2183,7 +2187,7 @@ static void dungeon(void)
 
     /* Kill basic mouse buttons */
     (void) button_kill(ESCAPE);
-    (void) button_kill('\r');
+    (void) button_kill(KC_ENTER);
     (void) button_kill(' ');
     (void) button_kill('n');
     (void) button_kill(',');

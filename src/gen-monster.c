@@ -366,6 +366,7 @@ extern char *mon_restrict(char symbol, byte depth, bool * ordered,
 	if (i < 2499) {
 	    /* ...use that monster's symbol for all monsters. */
 	    symbol = r_info[j].d_char;
+	    strcpy(name, r_info[j].base->name);
 	} else {
 	    /* Paranoia - pit stays empty if no monster is found */
 	    return (NULL);
@@ -806,18 +807,6 @@ extern char *mon_restrict(char symbol, byte depth, bool * ordered,
 	}
     }
 
-    /* If monster pit hasn't been named already, get a name. */
-    if (streq(name, "misc")) {
-	/* Search a table for a description of the symbol */
-	for (i = 0; d_char_req_desc[i]; ++i) {
-	    if (symbol == d_char_req_desc[i][0]) {
-		/* Get all but the 1st 2 characters of the text. */
-		sprintf(name, "%s", d_char_req_desc[i] + 2);
-		break;
-	    }
-	}
-    }
-
     /* Apply our restrictions */
     get_mon_num_hook = mon_select;
 
@@ -838,8 +827,6 @@ extern void get_chamber_monsters(int y1, int x1, int y2, int x2)
 
     /* Description of monsters in room */
     char *name;
-
-    feature_type *f_ptr;
 
     /* Get a legal depth. */
     depth = p_ptr->depth + randint0(11) - 5;
@@ -891,7 +878,6 @@ extern void get_chamber_monsters(int y1, int x1, int y2, int x2)
 	x = x1 + randint0(1 + ABS(x2 - x1));
 
 	/* Require a passable square with no monster in it already. */
-	f_ptr = &f_info[cave_feat[y][x]];
 	if (!cave_empty_bold(y, x))
 	    continue;
 
